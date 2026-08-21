@@ -1,0 +1,13 @@
+{
+  "admin": {
+    "id": "admin_owner",
+    "username": "ADMIN",
+    "passwordHash": "786786",
+    "name": "Master Administrator"
+  },
+  "batches": [],
+  "students": [],
+  "tests": [],
+  "attempts": [],
+  "results": []
+}
