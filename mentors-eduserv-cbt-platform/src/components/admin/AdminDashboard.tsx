@@ -25,6 +25,10 @@ import {
   FileCheck,
   Image as ImageIcon,
   Hash,
+  ArrowUp,
+  ArrowDown,
+  ListOrdered,
+  PlusCircle,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { Batch, Student, Test } from "../../types";
@@ -63,6 +67,8 @@ export const AdminDashboard: React.FC = () => {
   // AI Review questions state
   const [reviewedQuestions, setReviewedQuestions] = useState<any[]>([]);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [manualCountInput, setManualCountInput] = useState<number>(10);
+  const [manualTypeSelect, setManualTypeSelect] = useState<"mcq" | "integer">("mcq");
 
   // Student Creation State
   const [newStudentId, setNewStudentId] = useState("");
@@ -315,6 +321,22 @@ D. Acceleration`);
     setReviewedQuestions(renumbered);
   };
 
+  const handleMoveQuestion = (qIndex: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? qIndex - 1 : qIndex + 1;
+    if (targetIndex < 0 || targetIndex >= reviewedQuestions.length) return;
+    const updated = [...reviewedQuestions];
+    const temp = updated[qIndex];
+    updated[qIndex] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setReviewedQuestions(updated);
+  };
+
+  const handleAutoRenumber = () => {
+    const renumbered = reviewedQuestions.map((q, idx) => ({ ...q, questionNumber: idx + 1 }));
+    setReviewedQuestions(renumbered);
+    showMsg("success", `All ${renumbered.length} questions renumbered sequentially (1 to ${renumbered.length})`);
+  };
+
   const handleAddNewQuestion = (type: "mcq" | "integer" = "mcq") => {
     const nextNum = reviewedQuestions.length + 1;
     setReviewedQuestions([
@@ -322,7 +344,7 @@ D. Acceleration`);
       {
         id: "q_manual_" + Date.now(),
         questionNumber: nextNum,
-        questionText: type === "integer" ? "Numerical Type Question Text" : "New MCQ Question Text",
+        questionText: type === "integer" ? "Numerical Type Question Statement" : "New MCQ Question Statement",
         questionType: type,
         options: { A: "Option A", B: "Option B", C: "Option C", D: "Option D" },
         optionImages: { A: "", B: "", C: "", D: "" },
@@ -331,6 +353,32 @@ D. Acceleration`);
         imageUrl: "",
       },
     ]);
+  };
+
+  const handleGenerateBulkQuestions = (count: number, type: "mcq" | "integer" = "mcq") => {
+    if (!count || count <= 0) {
+      showMsg("error", "Please enter a valid question count (e.g. 5, 10, 25, 30)");
+      return;
+    }
+    const safeCount = Math.min(Math.max(1, count), 150);
+    const startNum = reviewedQuestions.length + 1;
+    const newItems: any[] = [];
+    for (let i = 0; i < safeCount; i++) {
+      const qNum = startNum + i;
+      newItems.push({
+        id: "q_bulk_" + Date.now() + "_" + i,
+        questionNumber: qNum,
+        questionText: `Question ${qNum} Statement`,
+        questionType: type,
+        options: { A: "Option A", B: "Option B", C: "Option C", D: "Option D" },
+        optionImages: { A: "", B: "", C: "", D: "" },
+        correctAnswer: "",
+        solution: "",
+        imageUrl: "",
+      });
+    }
+    setReviewedQuestions((prev) => [...prev, ...newItems]);
+    showMsg("success", `Generated ${safeCount} ${type === "integer" ? "Numerical" : "MCQ"} questions!`);
   };
 
   const handleApproveAllWithAnswers = () => {
@@ -805,14 +853,14 @@ D. Acceleration`);
             </div>
           </div>
 
-          {/* Step 2: Upload Question Paper & Answer Key */}
-          <div className="bg-white border border-slate-300 rounded-lg p-5 sm:p-6 shadow-xs space-y-4">
+            {/* Step 2: Upload Question Paper & Answer Key */}
+          <div className="bg-white border border-slate-300 rounded-lg p-5 sm:p-6 shadow-xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
                 <span className="w-6 h-6 rounded bg-slate-900 text-white text-xs flex items-center justify-center font-black">
                   2
                 </span>
-                <span>Upload Question Paper & Answer Key</span>
+                <span>Question Creation: AI Extraction or Manual Setup</span>
               </h2>
 
               <button
@@ -824,130 +872,194 @@ D. Acceleration`);
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {/* Question Paper Input */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Question Paper (PDF / Word / Text)
-                </label>
-
-                {/* File Upload box */}
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-lg p-4 text-center transition ${
-                    isDragging
-                      ? "border-blue-600 bg-blue-50/80 scale-[1.01]"
-                      : fileName
-                      ? "border-emerald-400 bg-emerald-50/40"
-                      : "border-slate-300 hover:border-blue-500 bg-slate-50"
-                  }`}
-                >
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,.doc,.txt,.png,.jpg,.jpeg,.webp"
-                    onChange={handleFileUpload}
-                    id="input-file-upload"
-                    className="hidden"
-                  />
-
-                  {fileName ? (
-                    <div className="flex items-center justify-between gap-3 p-2 bg-white rounded border border-emerald-300 shadow-2xs">
-                      <div className="flex items-center gap-2.5 text-left min-w-0">
-                        <div className="w-8 h-8 rounded bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-xs">
-                          <FileText className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-slate-900 truncate">{fileName}</div>
-                          <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
-                            <span>{fileSize}</span>
-                            <span>•</span>
-                            <span className="text-emerald-700 font-semibold">Ready for extraction</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <label
-                          htmlFor="input-file-upload"
-                          className="px-2.5 py-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded cursor-pointer transition"
-                        >
-                          Change
-                        </label>
-                        <button
-                          type="button"
-                          onClick={handleClearFile}
-                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
-                          title="Remove file"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <label
-                      htmlFor="input-file-upload"
-                      className="cursor-pointer flex flex-col items-center justify-center gap-1.5 py-2"
-                    >
-                      <Upload className="w-7 h-7 text-blue-600 animate-pulse" />
-                      <span className="text-xs font-bold text-slate-800">
-                        Click to upload or Drag & Drop Question Paper
-                      </span>
-                      <span className="text-[11px] text-slate-500 font-medium">
-                        Supports Word (.docx), PDF (.pdf), Text (.txt), and Images (.png, .jpg)
-                      </span>
-                    </label>
-                  )}
+            {/* Quick Manual Generator Box */}
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                    <ListOrdered className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-blue-950">Option A: Set Total Questions & Add Manually</h3>
+                    <p className="text-[11px] text-blue-800 font-medium">Generate blank numbered questions instantly without uploading files</p>
+                  </div>
                 </div>
 
-                <div className="text-[11px] text-slate-600 font-bold pt-1">Or paste question paper text:</div>
-                <textarea
-                  rows={6}
-                  value={paperText}
-                  onChange={(e) => setPaperText(e.target.value)}
-                  placeholder={`Q1. What is the SI unit of force?
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 bg-white px-2.5 py-1.5 rounded border border-blue-300 shadow-2xs">
+                    <span className="text-xs font-bold text-slate-700">Total Qs:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="150"
+                      value={manualCountInput}
+                      onChange={(e) => setManualCountInput(Math.max(1, Number(e.target.value)))}
+                      className="w-14 px-1.5 py-0.5 bg-slate-50 border border-slate-300 rounded text-xs font-mono font-bold text-slate-900 text-center outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <select
+                    value={manualTypeSelect}
+                    onChange={(e) => setManualTypeSelect(e.target.value as any)}
+                    className="px-2.5 py-1.5 bg-white border border-blue-300 rounded text-xs font-bold text-slate-800 outline-none shadow-2xs cursor-pointer"
+                  >
+                    <option value="mcq">MCQ (4 Options)</option>
+                    <option value="integer">Numerical / Integer</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateBulkQuestions(manualCountInput, manualTypeSelect)}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>Generate {manualCountInput} Questions</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddNewQuestion(manualTypeSelect)}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 text-blue-700 border border-blue-300 text-xs font-bold rounded shadow-2xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+1 Single</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Extraction Section */}
+            <div className="pt-2">
+              <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>Option B: Upload Paper / Text for AI Auto-Extraction</span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Question Paper Input */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Question Paper File (PDF / Word / Text / Image)
+                  </label>
+
+                  {/* File Upload box */}
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-lg p-4 text-center transition ${
+                      isDragging
+                        ? "border-blue-600 bg-blue-50/80 scale-[1.01]"
+                        : fileName
+                        ? "border-emerald-400 bg-emerald-50/40"
+                        : "border-slate-300 hover:border-blue-500 bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt,.png,.jpg,.jpeg,.webp"
+                      onChange={handleFileUpload}
+                      id="input-file-upload"
+                      className="hidden"
+                    />
+
+                    {fileName ? (
+                      <div className="flex items-center justify-between gap-3 p-2 bg-white rounded border border-emerald-300 shadow-2xs">
+                        <div className="flex items-center gap-2.5 text-left min-w-0">
+                          <div className="w-8 h-8 rounded bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-xs">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-slate-900 truncate">{fileName}</div>
+                            <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
+                              <span>{fileSize}</span>
+                              <span>•</span>
+                              <span className="text-emerald-700 font-semibold">Ready for extraction</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <label
+                            htmlFor="input-file-upload"
+                            className="px-2.5 py-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded cursor-pointer transition"
+                          >
+                            Change
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleClearFile}
+                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                            title="Remove file"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label
+                        htmlFor="input-file-upload"
+                        className="cursor-pointer flex flex-col items-center justify-center gap-1.5 py-2"
+                      >
+                        <Upload className="w-7 h-7 text-blue-600 animate-pulse" />
+                        <span className="text-xs font-bold text-slate-800">
+                          Click to upload or Drag & Drop Question Paper
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Supports Word (.docx), PDF (.pdf), Text (.txt), and Images (.png, .jpg)
+                        </span>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-slate-600 font-bold pt-1">Or paste question paper text:</div>
+                  <textarea
+                    rows={5}
+                    value={paperText}
+                    onChange={(e) => setPaperText(e.target.value)}
+                    placeholder={`Q1. What is the SI unit of force?
 (A) Joule
 (B) Newton
 (C) Pascal
 (D) Watt`}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded text-xs font-mono text-slate-900 focus:border-blue-500 outline-none"
-                />
-              </div>
+                    className="w-full p-3 bg-slate-50 border border-slate-300 rounded text-xs font-mono text-slate-900 focus:border-blue-500 outline-none"
+                  />
+                </div>
 
-              {/* Answer Key Input */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Answer Key (Optional or Separate)
-                </label>
-                <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                  Support shorthand formats like <code className="text-amber-700 bg-amber-50 px-1 py-0.5 rounded font-bold">1-A 2-C 3-D</code> or <code className="text-amber-700 bg-amber-50 px-1 py-0.5 rounded font-bold">1. A, 2. C</code>. If inside the question paper, AI will automatically detect it.
-                </p>
-                <textarea
-                  rows={9}
-                  value={answerKeyText}
-                  onChange={(e) => setAnswerKeyText(e.target.value)}
-                  placeholder={`1-C
+                {/* Answer Key Input */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Answer Key (Optional or Separate)
+                  </label>
+                  <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                    Support shorthand formats like <code className="text-amber-700 bg-amber-50 px-1 py-0.5 rounded font-bold">1-A 2-C 3-D</code> or <code className="text-amber-700 bg-amber-50 px-1 py-0.5 rounded font-bold">1. A, 2. C</code>. If inside the question paper, AI will automatically detect it.
+                  </p>
+                  <textarea
+                    rows={8}
+                    value={answerKeyText}
+                    onChange={(e) => setAnswerKeyText(e.target.value)}
+                    placeholder={`1-C
 2-A
 3-D
 4-B
 ...`}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded text-xs font-mono text-slate-900 focus:border-blue-500 outline-none"
-                />
+                    className="w-full p-3 bg-slate-50 border border-slate-300 rounded text-xs font-mono text-slate-900 focus:border-blue-500 outline-none"
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* AI Extraction Button */}
-            <div className="pt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={handleExtractAI}
-                disabled={extractingAI}
-                id="btn-extract-ai"
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm rounded shadow-xs flex items-center gap-2 transition active:scale-[0.99] cursor-pointer"
-              >
-                <Sparkles className={`w-4 h-4 ${extractingAI ? "animate-spin text-amber-300" : ""}`} />
-                <span>{extractingAI ? "AI Extracting Questions & Answers..." : "Extract Questions with AI"}</span>
-              </button>
+              {/* AI Extraction Button */}
+              <div className="pt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleExtractAI}
+                  disabled={extractingAI}
+                  id="btn-extract-ai"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm rounded shadow-xs flex items-center gap-2 transition active:scale-[0.99] cursor-pointer"
+                >
+                  <Sparkles className={`w-4 h-4 ${extractingAI ? "animate-spin text-amber-300" : ""}`} />
+                  <span>{extractingAI ? "AI Extracting Questions & Answers..." : "Extract Questions with AI"}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -984,7 +1096,7 @@ D. Acceleration`);
 
               {/* Action Buttons Bar */}
               <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-3 rounded border border-slate-300">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleAddNewQuestion("mcq")}
@@ -999,11 +1111,20 @@ D. Acceleration`);
                     className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded border border-slate-300 flex items-center gap-1 shadow-xs cursor-pointer"
                   >
                     <Hash className="w-3.5 h-3.5 text-purple-600" />
-                    <span>Add Integer Type</span>
+                    <span>Add Integer</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAutoRenumber}
+                    title="Renumber all questions sequentially from 1 to total"
+                    className="px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-800 text-xs font-bold rounded border border-blue-300 flex items-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    <ListOrdered className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Auto Renumber (1..{reviewedQuestions.length})</span>
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handleApproveAllWithAnswers}
@@ -1046,15 +1167,46 @@ D. Acceleration`);
                           : "bg-slate-50/70 border-slate-200"
                       } space-y-4`}
                     >
-                      {/* Card Header */}
+                      {/* Card Header with Question Numbering, Move Up/Down & Type selector */}
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-xs bg-slate-900 text-white px-2 py-0.5 rounded">
-                            Q {q.questionNumber}
-                          </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Editable Question Number */}
+                          <div className="flex items-center gap-1.5 bg-slate-900 text-white px-2 py-1 rounded shadow-2xs">
+                            <span className="text-[11px] font-black uppercase text-slate-300">Q. No.</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={q.questionNumber}
+                              onChange={(e) => handleUpdateQuestion(idx, "questionNumber", Number(e.target.value))}
+                              className="w-12 px-1 py-0.5 bg-slate-800 text-white font-mono font-black text-xs rounded border border-slate-700 outline-none text-center focus:border-blue-400"
+                              title="Click to change question number"
+                            />
+                          </div>
+
+                          {/* Re-order Up / Down */}
+                          <div className="inline-flex rounded shadow-2xs border border-slate-300 bg-white p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveQuestion(idx, "up")}
+                              disabled={idx === 0}
+                              title="Move Question Up"
+                              className="p-1 text-slate-600 hover:text-blue-600 hover:bg-slate-100 disabled:opacity-30 rounded cursor-pointer"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveQuestion(idx, "down")}
+                              disabled={idx === reviewedQuestions.length - 1}
+                              title="Move Question Down"
+                              className="p-1 text-slate-600 hover:text-blue-600 hover:bg-slate-100 disabled:opacity-30 rounded cursor-pointer"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
 
                           {/* Question Type Toggle Pills */}
-                          <div className="inline-flex rounded-md shadow-xs bg-slate-200 p-0.5">
+                          <div className="inline-flex rounded shadow-2xs bg-slate-200 p-0.5">
                             <button
                               type="button"
                               onClick={() => {
@@ -1082,13 +1234,13 @@ D. Acceleration`);
                                   : "text-slate-600 hover:text-slate-900"
                               }`}
                             >
-                              Integer / Numerical
+                              Numerical / Integer
                             </button>
                           </div>
 
                           {isUnverified ? (
                             <span className="text-[11px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded border border-red-300 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3 text-red-600" /> Answer needed
+                              <AlertTriangle className="w-3 h-3 text-red-600" /> Answer key needed
                             </span>
                           ) : (
                             <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300 flex items-center gap-1">
