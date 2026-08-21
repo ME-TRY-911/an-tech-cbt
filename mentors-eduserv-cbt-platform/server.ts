@@ -167,19 +167,51 @@ function writeDb(db: DatabaseSchema): void {
   }
 }
 
-// In-memory token store for sessions
+// Token secret & HMAC signing to ensure sessions persist across server restarts
+const TOKEN_SECRET = process.env.SESSION_SECRET || "an_tech_cbt_master_session_secret_786786";
+
+function generateSignedToken(payload: { role: "admin" | "student"; id: string; studentId?: string; name: string; batchId?: string }) {
+  const data = JSON.stringify({ ...payload, ts: Date.now() });
+  const b64 = Buffer.from(data).toString("base64url");
+  const signature = crypto.createHmac("sha256", TOKEN_SECRET).update(b64).digest("base64url");
+  return `${b64}.${signature}`;
+}
+
+function verifySignedToken(token: string): { role: "admin" | "student"; id: string; studentId?: string; name: string; batchId?: string } | null {
+  try {
+    if (!token || !token.includes(".")) return null;
+    const [b64, sig] = token.split(".");
+    const expectedSig = crypto.createHmac("sha256", TOKEN_SECRET).update(b64).digest("base64url");
+    if (sig !== expectedSig) return null;
+    const jsonStr = Buffer.from(b64, "base64url").toString("utf8");
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
+
+// In-memory token store for active sessions
 const sessions: Map<string, { role: "admin" | "student"; id: string; studentId?: string; name: string; batchId?: string }> = new Map();
 
 // Helper Auth Middlewares
 function authenticateAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized: Admin authentication token required" });
+    return res.status(401).json({ error: "Unauthorized: Admin authentication token required. Please log in." });
   }
   const token = authHeader.split(" ")[1];
-  const session = sessions.get(token);
+  let session = sessions.get(token);
+
+  if (!session) {
+    const verified = verifySignedToken(token);
+    if (verified && verified.role === "admin") {
+      session = { role: "admin", id: verified.id, name: verified.name };
+      sessions.set(token, session);
+    }
+  }
+
   if (!session || session.role !== "admin") {
-    return res.status(403).json({ error: "Forbidden: Access restricted to AN TECH Administrator" });
+    return res.status(401).json({ error: "Admin session expired or invalid. Please log in again with ID: ADMIN and Password: 786786" });
   }
   (req as any).adminSession = session;
   next();
@@ -188,12 +220,27 @@ function authenticateAdmin(req: express.Request, res: express.Response, next: ex
 function authenticateStudent(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized: Student authentication token required" });
+    return res.status(401).json({ error: "Unauthorized: Student authentication token required. Please log in." });
   }
   const token = authHeader.split(" ")[1];
-  const session = sessions.get(token);
+  let session = sessions.get(token);
+
+  if (!session) {
+    const verified = verifySignedToken(token);
+    if (verified && verified.role === "student") {
+      session = {
+        role: "student",
+        id: verified.id,
+        studentId: verified.studentId,
+        name: verified.name,
+        batchId: verified.batchId,
+      };
+      sessions.set(token, session);
+    }
+  }
+
   if (!session || session.role !== "student") {
-    return res.status(403).json({ error: "Forbidden: Student access only" });
+    return res.status(401).json({ error: "Student session expired or invalid. Please log in again." });
   }
   (req as any).studentSession = session;
   next();
@@ -225,15 +272,16 @@ app.post("/api/auth/student-login", (req, res) => {
   }
 
   const batch = db.batches.find((b) => b.id === student.batchId);
-  const token = "stu_tok_" + crypto.randomBytes(24).toString("hex");
-
-  sessions.set(token, {
-    role: "student",
+  const tokenPayload = {
+    role: "student" as const,
     id: student.id,
     studentId: student.studentId,
     name: student.name,
     batchId: student.batchId,
-  });
+  };
+  const token = generateSignedToken(tokenPayload);
+
+  sessions.set(token, tokenPayload);
 
   return res.json({
     token,
@@ -263,12 +311,13 @@ app.post("/api/auth/admin-login", (req, res) => {
   const configuredPass = db.admin?.passwordHash || "786786";
 
   if ((cleanUser === configuredUser || cleanUser === "ADMIN") && (cleanPass === configuredPass || cleanPass === "786786")) {
-    const token = "adm_tok_" + crypto.randomBytes(24).toString("hex");
-    sessions.set(token, {
-      role: "admin",
+    const tokenPayload = {
+      role: "admin" as const,
       id: db.admin?.id || "admin_owner",
       name: db.admin?.name || "Master Administrator",
-    });
+    };
+    const token = generateSignedToken(tokenPayload);
+    sessions.set(token, tokenPayload);
 
     return res.json({
       token,
@@ -291,7 +340,15 @@ app.get("/api/auth/me", (req, res) => {
     return res.status(401).json({ error: "Not logged in" });
   }
   const token = authHeader.split(" ")[1];
-  const session = sessions.get(token);
+  let session = sessions.get(token);
+  if (!session) {
+    const verified = verifySignedToken(token);
+    if (verified) {
+      session = verified;
+      sessions.set(token, session);
+    }
+  }
+
   if (!session) {
     return res.status(401).json({ error: "Session expired or invalid" });
   }
