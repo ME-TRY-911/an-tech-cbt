@@ -1,0 +1,98 @@
+{
+  "admin": {
+    "id": "admin_owner",
+    "username": "ADMIN",
+    "passwordHash": "786786",
+    "name": "Master Administrator"
+  },
+  "batches": [
+    {
+      "id": "batch_1787307910762",
+      "name": "JEE Adv 2027",
+      "code": "JEE-2027",
+      "description": "Target Batch",
+      "createdAt": "2026-08-21T10:25:10.762Z"
+    },
+    {
+      "id": "batch_1787388641570",
+      "name": "Class 12 Foundation",
+      "code": "C12-FDN",
+      "description": "Regular batch",
+      "createdAt": "2026-08-22T08:50:41.570Z"
+    }
+  ],
+  "students": [
+    {
+      "id": "stu_1787388641575",
+      "studentId": "STU1001",
+      "name": "Rahul Kumar",
+      "password": "pass",
+      "batchId": "batch_1787388641570",
+      "status": "active",
+      "createdAt": "2026-08-22T08:50:41.575Z"
+    }
+  ],
+  "tests": [
+    {
+      "id": "test_1787307910769",
+      "title": "Physics Test 01",
+      "subject": "Physics",
+      "batchId": "batch_1787307910762",
+      "durationMinutes": 60,
+      "positiveMarks": 4,
+      "negativeMarks": 1,
+      "unattemptedMarks": 0,
+      "questions": [
+        {
+          "id": "q1",
+          "questionNumber": 1,
+          "questionText": "What is SI unit of force?",
+          "questionType": "mcq",
+          "options": {
+            "A": "Joule",
+            "B": "Newton",
+            "C": "Watt",
+            "D": "Pascal"
+          },
+          "optionImages": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          },
+          "correctAnswer": "B",
+          "solution": "",
+          "imageUrl": ""
+        },
+        {
+          "id": "q2",
+          "questionNumber": 2,
+          "questionText": "Value of acceleration due to gravity in m/s^2 (nearest integer)",
+          "questionType": "integer",
+          "options": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          },
+          "optionImages": {
+            "A": "",
+            "B": "",
+            "C": "",
+            "D": ""
+          },
+          "correctAnswer": "10",
+          "solution": "",
+          "imageUrl": ""
+        }
+      ],
+      "status": "published",
+      "enableLeaderboard": true,
+      "totalMarks": 8,
+      "createdAt": "2026-08-21T10:25:10.769Z",
+      "publishedAt": "2026-08-21T10:25:10.769Z"
+    }
+  ],
+  "attempts": [],
+  "results": []
+}
