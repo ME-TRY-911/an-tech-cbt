@@ -90,6 +90,7 @@ export const AdminDashboard: React.FC = () => {
   const [selectedResultDetail, setSelectedResultDetail] = useState<any | null>(null);
 
   // Safe In-App Delete Confirmation Modal State (Replaces blocked window.confirm)
+  const [editingTestId, setEditingTestId] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<{
     type: "test" | "batch" | "student";
     id: string;
@@ -418,7 +419,57 @@ D. Acceleration`);
     showMsg("success", "All questions and answer keys verified!");
   };
 
-  // Publish Test
+  // Edit Test Trigger
+  const handleStartEditTest = (test: Test) => {
+    setEditingTestId(test.id);
+    setTestTitle(test.title);
+    setTestSubject(test.subject);
+    setTestBatchId(test.batchId);
+    setTestDuration(test.durationMinutes);
+    setTestPosMarks(test.positiveMarks);
+    setTestNegMarks(test.negativeMarks);
+    setTestUnattemptedMarks(test.unattemptedMarks ?? 0);
+    setTestEnableLeaderboard(test.enableLeaderboard !== false);
+    setReviewedQuestions(
+      (test.questions || []).map((q, idx) => ({
+        id: q.id || `q_${idx + 1}_${Date.now()}`,
+        questionNumber: q.questionNumber !== undefined && q.questionNumber !== null && !isNaN(Number(q.questionNumber)) ? Number(q.questionNumber) : idx + 1,
+        questionText: q.questionText || "",
+        questionType: q.questionType || (q.options?.A || q.options?.B ? "mcq" : "integer"),
+        options: {
+          A: q.options?.A || "",
+          B: q.options?.B || "",
+          C: q.options?.C || "",
+          D: q.options?.D || "",
+        },
+        optionImages: {
+          A: q.optionImages?.A || "",
+          B: q.optionImages?.B || "",
+          C: q.optionImages?.C || "",
+          D: q.optionImages?.D || "",
+        },
+        correctAnswer: q.correctAnswer || "",
+        solution: q.solution || "",
+        imageUrl: q.imageUrl || "",
+      }))
+    );
+    setCurrentTab("create-test");
+    showMsg("success", `Editing test paper: "${test.title}". Modify questions, options, diagram images, or answers below and click "Update & Save".`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancelEditTest = () => {
+    setEditingTestId(null);
+    setTestTitle("");
+    setPaperText("");
+    setAnswerKeyText("");
+    setFileBase64(null);
+    setFileName(null);
+    setReviewedQuestions([]);
+    setCurrentTab("tests");
+  };
+
+  // Publish / Update Test
   const handleSaveAndPublishTest = async (status: "published" | "draft") => {
     if (!testTitle.trim()) {
       showMsg("error", "Please provide a Test Title");
@@ -469,8 +520,20 @@ D. Acceleration`);
         status,
       };
 
-      const newTest = await api.createTest(payload);
-      showMsg("success", `Test "${newTest.title}" ${status === "published" ? "published successfully!" : "saved as draft!"}`);
+      if (editingTestId) {
+        const updatedTest = await api.updateTest(editingTestId, payload);
+        showMsg(
+          "success",
+          `✅ Test "${updatedTest.title}" updated and ${status === "published" ? "published to students!" : "saved as draft!"}`
+        );
+        setEditingTestId(null);
+      } else {
+        const newTest = await api.createTest(payload);
+        showMsg(
+          "success",
+          `Test "${newTest.title}" ${status === "published" ? "published successfully!" : "saved as draft!"}`
+        );
+      }
       
       // Reset wizard
       setTestTitle("");
@@ -709,8 +772,17 @@ D. Acceleration`);
               : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-300"
           }`}
         >
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span>Create Test & AI Upload</span>
+          {editingTestId ? (
+            <>
+              <Edit2 className="w-4 h-4 text-amber-400" />
+              <span className="text-amber-300">✏️ Edit Test Paper ({reviewedQuestions.length} Qs)</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Create Test & AI Upload</span>
+            </>
+          )}
         </button>
 
         <button
@@ -763,17 +835,68 @@ D. Acceleration`);
       </div>
 
       {/* ==================================================== */}
-      {/* TAB 1: CREATE TEST & AI EXTRACTION / REVIEW */}
+      {/* TAB 1: CREATE / EDIT TEST & AI EXTRACTION / REVIEW */}
       {/* ==================================================== */}
       {currentTab === "create-test" && (
         <div className="space-y-6">
+          {/* Edit Mode Active Banner */}
+          {editingTestId && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-500 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-black text-amber-900 uppercase tracking-wider bg-amber-200 border border-amber-300 px-2 py-0.5 rounded">
+                      ✏️ EDIT MODE ACTIVE
+                    </span>
+                    <span className="text-xs text-amber-900 font-bold">
+                      {reviewedQuestions.length} Questions Loaded
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-0.5">
+                    {testTitle || "Untitled Test"}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSaveAndPublishTest("published")}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded shadow-xs cursor-pointer flex items-center gap-1.5 transition"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Update & Publish</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveAndPublishTest("draft")}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded shadow-xs cursor-pointer flex items-center gap-1.5 transition"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Update as Draft</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelEditTest}
+                  className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold rounded cursor-pointer flex items-center gap-1 transition shadow-2xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Cancel Edit</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Step 1: Test Metadata & Marking Scheme */}
           <div className="bg-white border border-slate-300 rounded-lg p-5 sm:p-6 shadow-xs space-y-4">
             <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
               <span className="w-6 h-6 rounded bg-slate-900 text-white text-xs flex items-center justify-center font-black">
                 1
               </span>
-              <span>Test Configuration & Marking Scheme</span>
+              <span>{editingTestId ? "Edit Test Configuration & Marking Scheme" : "Test Configuration & Marking Scheme"}</span>
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1178,7 +1301,7 @@ D. Acceleration`);
                     onClick={() => handleSaveAndPublishTest("draft")}
                     className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded border border-slate-300 shadow-xs cursor-pointer"
                   >
-                    Save Draft
+                    {editingTestId ? "Update as Draft" : "Save Draft"}
                   </button>
                   <button
                     type="button"
@@ -1187,7 +1310,7 @@ D. Acceleration`);
                     className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Publish Test to Batch</span>
+                    <span>{editingTestId ? "Update & Publish Test" : "Publish Test to Batch"}</span>
                   </button>
                 </div>
               </div>
@@ -1504,6 +1627,63 @@ D. Acceleration`);
                   );
                 })}
               </div>
+
+              {/* Bottom Sticky-friendly Save & Action Bar for Test Paper */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t-2 border-slate-200 bg-slate-50 p-4 rounded-lg">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAddNewQuestion("mcq")}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded border border-slate-300 flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-blue-600" />
+                    <span>+ Add Another MCQ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddNewQuestion("integer")}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded border border-slate-300 flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Hash className="w-3.5 h-3.5 text-purple-600" />
+                    <span>+ Add Numerical Q</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAutoRenumber}
+                    className="px-3.5 py-2 bg-white hover:bg-blue-50 text-blue-800 text-xs font-bold rounded border border-blue-300 flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <ListOrdered className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Renumber (1..{reviewedQuestions.length})</span>
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {editingTestId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditTest}
+                      className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded border border-slate-300 shadow-xs cursor-pointer"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAndPublishTest("draft")}
+                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded border border-slate-300 shadow-xs cursor-pointer"
+                  >
+                    {editingTestId ? "Update as Draft" : "Save Draft"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAndPublishTest("published")}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{editingTestId ? "Update & Save Test Paper" : "Publish Test to Batch"}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1590,6 +1770,14 @@ D. Acceleration`);
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleStartEditTest(test)}
+                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      title="Edit Test Paper (Questions, Diagrams, Options, Answers, Marking Scheme)"
+                    >
+                      <Edit2 className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Edit Paper</span>
+                    </button>
                     <button
                       onClick={() => handleTogglePublishTest(test)}
                       className={`px-3.5 py-1.5 text-xs font-bold rounded border transition cursor-pointer ${
