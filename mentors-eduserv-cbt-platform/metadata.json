@@ -1,6 +1,0 @@
-{
-  "name": "Mentors EduServ CBT Platform",
-  "description": "Production-ready online CBT test platform for AN TECH featuring AI-powered question paper parsing, mobile-first test taking, instant results, and batch-isolated rankings.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
